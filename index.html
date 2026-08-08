@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>盘中异动 · 美股新闻联动看板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#10151c; --surface:#171e27; --surface-2:#1e2733; --border:#2a3441;
+    --text:#e7ecf2; --text-dim:#7c8798; --up:#33d69f; --down:#ff6767; --amber:#f2b84b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;
+    background-image:repeating-linear-gradient(90deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 64px);}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+
+  .ticker-bar{background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden;white-space:nowrap;padding:9px 0;}
+  .ticker-track{display:inline-flex;animation:scroll 32s linear infinite;}
+  .ticker-track span{padding:0 22px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text-dim);border-right:1px solid var(--border);}
+  .ticker-track span b{color:var(--text);font-weight:600;margin-right:6px;}
+  .ticker-track .up{color:var(--up);} .ticker-track .down{color:var(--down);}
+  @keyframes scroll{0%{transform:translateX(0);}100%{transform:translateX(-50%);}}
+
+  header.topbar{padding:26px 32px 6px;max-width:1320px;margin:0 auto;}
+  header.topbar h1{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;letter-spacing:-0.01em;}
+  header.topbar p{color:var(--text-dim);font-size:13.5px;margin-top:6px;}
+  header.topbar .updated{color:var(--text-dim);font-size:11.5px;margin-top:8px;font-family:'IBM Plex Mono',monospace;}
+
+  .container{max-width:1320px;margin:0 auto;padding:18px 32px 60px;}
+  .status-banner{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:14px 18px;margin-top:14px;font-size:13px;color:#c9d0da;line-height:1.6;display:none;}
+  .status-banner.show{display:block;}
+
+  .movers-label{font-size:12px;letter-spacing:.12em;color:var(--text-dim);text-transform:uppercase;margin:24px 0 10px 2px;font-weight:600;display:flex;align-items:center;gap:8px;}
+  .movers-label.warn-label{color:var(--amber);}
+  .movers-row{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px;}
+  .mover-card{flex:0 0 210px;background:linear-gradient(160deg, var(--surface), var(--surface-2));border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:border-color .15s, transform .15s;}
+  .mover-card:hover{border-color:var(--amber);transform:translateY(-2px);}
+  .mover-card.active{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber) inset;}
+  .mover-card .sym{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;}
+  .mover-card .nm{color:var(--text-dim);font-size:11.5px;margin-top:2px;}
+  .mover-card .pct{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:20px;margin-top:10px;}
+  .mover-card .newsct{font-size:11px;color:var(--text-dim);margin-top:8px;display:flex;align-items:center;gap:5px;}
+  .mover-card .newsct::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 3px rgba(242,184,75,.18);}
+
+  .ew-card{flex:0 0 280px;background:linear-gradient(160deg, var(--surface), #221c14);border:1px solid #4a3a1f;border-radius:10px;padding:15px 16px;cursor:pointer;transition:border-color .15s, transform .15s;}
+  .ew-card:hover{border-color:var(--amber);transform:translateY(-2px);}
+  .ew-card .ew-top{display:flex;justify-content:space-between;align-items:center;}
+  .ew-card .sym{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;}
+  .ew-card .ew-badge{font-size:10px;background:rgba(242,184,75,.18);color:var(--amber);padding:2px 7px;border-radius:4px;font-weight:600;}
+  .ew-card .ew-text{font-size:12px;color:#c9d0da;line-height:1.5;margin-top:8px;}
+  .empty-note{color:var(--text-dim);font-size:12.5px;padding:10px 2px;}
+
+  .risk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-bottom:6px;}
+  .risk-card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:13px 15px;border-left:3px solid var(--text-dim);}
+  .risk-card.impact-high{border-left-color:var(--down);}
+  .risk-card.impact-medium{border-left-color:var(--amber);}
+  .risk-card .rc-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+  .risk-card .rc-sym{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13.5px;}
+  .risk-card .rc-when{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--amber);white-space:nowrap;}
+  .risk-card .rc-title{font-size:12.5px;color:#c9d0da;margin-top:6px;line-height:1.5;}
+
+  .layout{display:grid;grid-template-columns:230px 1fr;gap:16px;margin-top:26px;}
+  @media (max-width:820px){.layout{grid-template-columns:1fr;}}
+
+  .watchlist{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:6px;align-self:start;}
+  .watchlist-header{font-size:11.5px;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;padding:10px 12px 8px;font-weight:600;}
+  .stock-row{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:7px;cursor:pointer;transition:background .12s;}
+  .stock-row:hover{background:var(--surface-2);}
+  .stock-row.active{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--amber);}
+  .stock-row .sr-left{display:flex;align-items:center;gap:6px;}
+  .stock-row .sr-left .sym{font-weight:600;font-size:13.5px;}
+  .stock-row .sr-left .nm{font-size:10.5px;color:var(--text-dim);}
+  .stock-row .warn-dot{width:6px;height:6px;border-radius:50%;background:var(--amber);flex:none;}
+  .stock-row .sr-right{text-align:right;font-family:'IBM Plex Mono',monospace;}
+  .stock-row .sr-right .p{font-size:12.5px;} .stock-row .sr-right .c{font-size:11px;}
+
+  .detail{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:22px 24px;min-height:520px;}
+  .detail-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:6px;}
+  .detail-head h2{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;}
+  .detail-head .cname{color:var(--text-dim);font-size:13px;font-weight:500;margin-left:8px;}
+  .price-line{display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap;}
+  .price-line .price{font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:600;}
+  .price-line .chg{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;padding:3px 8px;border-radius:5px;}
+  .chg.up{color:var(--up);background:rgba(51,214,159,.1);}
+  .chg.down{color:var(--down);background:rgba(255,103,103,.1);}
+  .chg.warn{color:var(--amber);background:rgba(242,184,75,.12);}
+
+  .chart-wrap{margin-top:18px;position:relative;}
+  .chart-hint{font-size:11.5px;color:var(--text-dim);margin-bottom:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .chart-hint .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block;}
+  svg#chart{width:100%;height:auto;overflow:visible;}
+  .marker{cursor:pointer;}
+  .marker circle{fill:var(--amber);stroke:var(--bg);stroke-width:2;transition:r .12s;}
+  .marker:hover circle, .marker.pulse circle{r:7;}
+  .marker.pulse circle{animation:pulse 1s ease-in-out 2;}
+  @keyframes pulse{0%,100%{fill:var(--amber);}50%{fill:#fff;}}
+
+  .news-feed{margin-top:22px;}
+  .news-feed-header{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);font-weight:600;margin-bottom:6px;}
+  .news-feed-sub{font-size:11.5px;color:var(--text-dim);margin-bottom:12px;line-height:1.5;}
+  .news-card{border:1px solid var(--border);border-radius:9px;padding:14px 16px;margin-bottom:10px;background:var(--surface-2);transition:border-color .15s;scroll-margin-top:20px;}
+  .news-card.highlight{border-color:var(--amber);}
+  .news-card .nc-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;}
+  .news-card .nc-title a{color:var(--text);text-decoration:none;}
+  .news-card .nc-title a:hover{color:var(--amber);}
+  .news-card .nc-title{font-size:14.5px;font-weight:600;margin-top:5px;line-height:1.4;}
+  .news-card .nc-src{font-size:11px;color:var(--text-dim);margin-top:3px;}
+  .nc-tags{display:flex;gap:6px;flex:none;}
+  .nc-tag{font-size:10.5px;padding:2px 7px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-weight:600;white-space:nowrap;}
+  .nc-tag.up{color:var(--up);background:rgba(51,214,159,.12);}
+  .nc-tag.down{color:var(--down);background:rgba(255,103,103,.12);}
+  .nc-tag.vol-high{color:var(--amber);background:rgba(242,184,75,.14);}
+  .nc-tag.vol-low{color:#9aa4b2;background:rgba(154,164,178,.12);}
+  .news-card .nc-data{margin-top:9px;padding-top:9px;border-top:1px dashed var(--border);font-size:12.8px;color:#c3ccd6;line-height:1.55;}
+  .news-card .nc-data b{color:var(--amber);font-weight:600;}
+
+  .loading-state, .error-state{padding:60px 10px;text-align:center;color:var(--text-dim);font-size:13.5px;line-height:1.7;}
+  .error-state code{background:var(--surface-2);padding:2px 6px;border-radius:4px;font-family:'IBM Plex Mono',monospace;}
+
+  footer.note{max-width:1320px;margin:10px auto 40px;padding:0 32px;color:var(--text-dim);font-size:11.5px;line-height:1.6;}
+</style>
+</head>
+<body>
+
+<div class="ticker-bar"><div class="ticker-track" id="tickerTrack"></div></div>
+
+<header class="topbar">
+  <h1>盘中异动 · 美股新闻联动看板</h1>
+  <p>数据由 GitHub Actions 每个交易日自动抓取（Finnhub），网页只负责展示。新闻按时间就近匹配对应K线，不代表确定的因果关系，请自行判断。</p>
+  <div class="updated" id="updatedAt"></div>
+</header>
+
+<div class="container">
+  <div class="status-banner" id="statusBanner"></div>
+
+  <div class="movers-label">🔥 今日异动 TOP</div>
+  <div class="movers-row" id="moversRow"></div>
+
+  <div class="movers-label warn-label" id="ewLabel">⚠ 早期异动预警 · 成交量明显放大</div>
+  <div class="movers-row" id="earlyWarningRow"></div>
+
+  <div class="movers-label">📅 近期风险事件（财报等）</div>
+  <div class="risk-grid" id="riskGrid"></div>
+
+  <div class="layout">
+    <div class="watchlist">
+      <div class="watchlist-header">自选股</div>
+      <div id="watchlistRows"></div>
+    </div>
+
+    <div class="detail">
+      <div class="detail-head">
+        <div>
+          <h2 id="dSym">—<span class="cname" id="dName"></span></h2>
+          <div class="price-line">
+            <span class="price mono" id="dPrice">—</span>
+            <span class="chg mono" id="dChg">—</span>
+            <span class="chg mono" id="dVolSignal">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-wrap">
+        <div class="chart-hint"><span class="dot"></span> 圆点=今日相关新闻，点一下看详情；下方柱状图=成交量，虚线为当日均量</div>
+        <svg id="chart" viewBox="0 0 860 300" preserveAspectRatio="none"></svg>
+      </div>
+
+      <div class="news-feed">
+        <div class="news-feed-header">相关新闻</div>
+        <div class="news-feed-sub">下面标注的是"新闻发布时间附近该K线的涨跌与成交量"，用于辅助判断，不是AI因果分析。</div>
+        <div id="newsList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="note">
+  数据来源：Finnhub（可能有15-20分钟延迟，视免费额度而定）。财报日期等信息以官方公告为准。本页面仅作个人参考，不构成投资建议。
+</footer>
+
+<script>
+let DATA = null;
+let current = null;
+
+function fmtPct(p){ if(p===null||p===undefined) return "—"; const s=p>=0?"+":""; return s+p.toFixed(2)+"%"; }
+function fmtPrice(p){ if(p===null||p===undefined) return "—"; return "$"+p.toFixed(2); }
+
+function pctOf(sym){
+  const d = DATA.stocks[sym];
+  if(d.changePct!==null && d.changePct!==undefined) return d.changePct;
+  if(d.prices && d.prices.length>1) return ((d.prices[d.prices.length-1]/d.prices[0])-1)*100;
+  return 0;
+}
+
+function avgVolRatioOf(sym){
+  const d = DATA.stocks[sym];
+  if(!d.volumes || !d.volumes.length || !d.avgVolume) return 1;
+  const avg = d.volumes.reduce((a,b)=>a+b,0)/d.volumes.length;
+  return avg/d.avgVolume;
+}
+
+function overallSignal(sym){
+  const pct = pctOf(sym);
+  const ratio = avgVolRatioOf(sym);
+  const heavy = ratio>=1.15;
+  if(pct>=0) return heavy? {label:"放量上涨 · 量能确认", cls:"up"} : {label:"缩量上涨 · 追高需谨慎", cls:"warn"};
+  return heavy? {label:"放量下跌 · 抛压较明确", cls:"down"} : {label:"缩量下跌 · 或有超卖反弹", cls:"warn"};
+}
+
+function volTagFor(sym, idx){
+  const d = DATA.stocks[sym];
+  if(!d.avgVolume || !d.volumes) return {label:"—", cls:"vol-low", ratio:1};
+  const ratio = d.volumes[idx]/d.avgVolume;
+  if(ratio>=1.3) return {label:"放量", cls:"vol-high", ratio};
+  if(ratio<=0.75) return {label:"缩量", cls:"vol-low", ratio};
+  return {label:"量能持平", cls:"vol-low", ratio};
+}
+
+function eventIcon(type){ return {earnings:"📊", speech:"🎤", layoffs:"✂️", other:"🗞️"}[type] || "🗞️"; }
+
+function buildTicker(){
+  const track = document.getElementById('tickerTrack');
+  let html = "";
+  for(let rep=0; rep<2; rep++){
+    Object.entries(DATA.stocks).forEach(([sym, d])=>{
+      if(d.error) return;
+      const pct = pctOf(sym);
+      const cls = pct>=0?"up":"down";
+      html += `<span><b>${sym}</b>${fmtPrice(d.currentPrice)} <span class="${cls}">${fmtPct(pct)}</span></span>`;
+    });
+  }
+  track.innerHTML = html || "<span>暂无数据</span>";
+}
+
+function buildMovers(){
+  const row = document.getElementById('moversRow');
+  const ranked = Object.entries(DATA.stocks)
+    .filter(([,d])=>!d.error)
+    .map(([sym,d])=>({sym, d, pct: pctOf(sym)}))
+    .sort((a,b)=>Math.abs(b.pct)-Math.abs(a.pct))
+    .slice(0,4);
+  if(ranked.length===0){ row.innerHTML = '<div class="empty-note">暂无可用数据</div>'; return; }
+  row.innerHTML = ranked.map(({sym,d,pct})=>{
+    const cls = pct>=0?"up":"down";
+    return `<div class="mover-card" data-sym="${sym}">
+      <div class="sym display">${sym}</div>
+      <div class="nm">${d.name}</div>
+      <div class="pct mono" style="color:var(--${cls})">${fmtPct(pct)}</div>
+      <div class="newsct">${(d.news||[]).length} 条相关新闻</div>
+    </div>`;
+  }).join("");
+  row.querySelectorAll('.mover-card').forEach(el=>el.addEventListener('click', ()=>selectStock(el.dataset.sym)));
+}
+
+function buildEarlyWarning(){
+  const row = document.getElementById('earlyWarningRow');
+  const label = document.getElementById('ewLabel');
+  const flagged = Object.entries(DATA.stocks).filter(([,d])=>d.earlyWarning && d.earlyWarning.active);
+  if(flagged.length===0){ row.style.display='none'; label.style.display='none'; return; }
+  row.style.display='flex'; label.style.display='flex';
+  row.innerHTML = flagged.map(([sym,d])=>`
+    <div class="ew-card" data-sym="${sym}">
+      <div class="ew-top"><span class="sym display">${sym}</span><span class="ew-badge">早期信号</span></div>
+      <div class="ew-text">${d.earlyWarning.text}</div>
+    </div>`).join("");
+  row.querySelectorAll('.ew-card').forEach(el=>el.addEventListener('click', ()=>selectStock(el.dataset.sym)));
+}
+
+function buildRiskCalendar(){
+  const grid = document.getElementById('riskGrid');
+  let items = [];
+  Object.entries(DATA.stocks).forEach(([sym,d])=>{ (d.events||[]).forEach(ev=>items.push({sym, ...ev})); });
+  if(items.length===0){ grid.innerHTML = '<div class="empty-note">近期没有已知的财报/事件（或免费额度未返回财报日历数据）</div>'; return; }
+  grid.innerHTML = items.map(ev=>`
+    <div class="risk-card impact-${ev.impact}" data-sym="${ev.sym}">
+      <div class="rc-top"><span class="rc-sym">${eventIcon(ev.type)} ${ev.sym}</span><span class="rc-when">${ev.when}</span></div>
+      <div class="rc-title">${ev.title}</div>
+    </div>`).join("");
+  grid.querySelectorAll('.risk-card').forEach(el=>el.addEventListener('click', ()=>selectStock(el.dataset.sym)));
+}
+
+function buildWatchlist(){
+  const wrap = document.getElementById('watchlistRows');
+  wrap.innerHTML = Object.entries(DATA.stocks).map(([sym,d])=>{
+    if(d.error){
+      return `<div class="stock-row" data-sym="${sym}" style="opacity:.5;">
+        <div class="sr-left"><div><div class="sym">${sym}</div><div class="nm">数据获取失败</div></div></div>
+      </div>`;
+    }
+    const pct = pctOf(sym); const cls = pct>=0?"up":"down";
+    return `<div class="stock-row" data-sym="${sym}">
+      <div class="sr-left">
+        ${d.earlyWarning && d.earlyWarning.active?'<span class="warn-dot" title="早期预警"></span>':''}
+        <div><div class="sym">${sym}</div><div class="nm">${d.name}</div></div>
+      </div>
+      <div class="sr-right"><div class="p">${fmtPrice(d.currentPrice)}</div><div class="c ${cls}">${fmtPct(pct)}</div></div>
+    </div>`;
+  }).join("");
+  wrap.querySelectorAll('.stock-row').forEach(el=>el.addEventListener('click', ()=>{
+    if(!DATA.stocks[el.dataset.sym].error) selectStock(el.dataset.sym);
+  }));
+}
+
+function renderChart(sym){
+  const d = DATA.stocks[sym];
+  const prices = d.prices || [], volumes = d.volumes || [], labels = d.timesLabel || [];
+  const chartEl = document.getElementById('chart');
+  if(prices.length<2){ chartEl.innerHTML = ''; return; }
+
+  const W=860, H=300, padL=8, padR=8;
+  const priceTop=18, priceBottom=168, volTop=182, volBottom=248, labelY=270;
+
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const range = (max-min)||1;
+  const x = i => padL + (i/(prices.length-1))*(W-padL-padR);
+  const yPrice = p => priceTop + (1-((p-min)/range))*(priceBottom-priceTop);
+  const volMax = Math.max(...volumes, d.avgVolume||0)*1.08 || 1;
+  const yVol = v => volBottom - (v/volMax)*(volBottom-volTop);
+
+  let pathD = prices.map((p,i)=> (i===0?"M":"L") + x(i).toFixed(1) + " " + yPrice(p).toFixed(1)).join(" ");
+  const areaD = pathD + ` L ${x(prices.length-1).toFixed(1)} ${priceBottom} L ${x(0).toFixed(1)} ${priceBottom} Z`;
+  const overallUp = prices[prices.length-1] >= prices[0];
+
+  let svg = `<defs><linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${overallUp?'#33d69f':'#ff6767'}" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="${overallUp?'#33d69f':'#ff6767'}" stop-opacity="0"/></linearGradient></defs>
+    <path d="${areaD}" fill="url(#grad)" stroke="none"></path>
+    <path d="${pathD}" fill="none" stroke="${overallUp?'var(--up)':'var(--down)'}" stroke-width="2"></path>`;
+
+  const bw = ((W-padL-padR)/Math.max(prices.length-1,1))*0.5;
+  volumes.forEach((v,i)=>{
+    const ratio = d.avgVolume ? v/d.avgVolume : 1;
+    const heavy = ratio>=1.3;
+    const bx = x(i)-bw/2, by = yVol(v);
+    svg += `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${bw.toFixed(1)}" height="${(volBottom-by).toFixed(1)}" fill="${heavy?'var(--amber)':'#3a4657'}" rx="1.5"></rect>`;
+  });
+  if(d.avgVolume){
+    const avgY = yVol(d.avgVolume);
+    svg += `<line x1="${padL}" y1="${avgY.toFixed(1)}" x2="${W-padR}" y2="${avgY.toFixed(1)}" stroke="var(--text-dim)" stroke-width="1" stroke-dasharray="4 4"></line>`;
+    svg += `<text x="${padL}" y="${(avgY-5).toFixed(1)}" font-size="9.5" fill="var(--text-dim)" font-family="IBM Plex Mono, monospace">当日均量</text>`;
+  }
+  svg += `<text x="${padL}" y="${volTop-6}" font-size="9.5" fill="var(--text-dim)" font-family="IBM Plex Mono, monospace">成交量</text>`;
+
+  const step = Math.max(1, Math.floor(labels.length/5));
+  labels.forEach((lb,i)=>{
+    if(i%step===0 || i===labels.length-1){
+      svg += `<text x="${x(i)}" y="${labelY}" font-size="10" fill="var(--text-dim)" font-family="IBM Plex Mono, monospace" text-anchor="middle">${lb}</text>`;
+    }
+  });
+
+  (d.news||[]).forEach((n, ni)=>{
+    const idx = Math.min(n.idx, prices.length-1);
+    const cx = x(idx), cy = yPrice(prices[idx]);
+    svg += `<g class="marker" data-newsidx="${ni}" transform="translate(${cx},${cy})"><circle r="5.5"></circle></g>`;
+  });
+
+  chartEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  chartEl.innerHTML = svg;
+  chartEl.querySelectorAll('.marker').forEach(m=>m.addEventListener('click', ()=>focusNews(m.dataset.newsidx)));
+}
+
+function renderNews(sym){
+  const d = DATA.stocks[sym];
+  const list = document.getElementById('newsList');
+  const items = d.news || [];
+  if(items.length===0){ list.innerHTML = '<div class="empty-note">今天暂无相关新闻</div>'; return; }
+  list.innerHTML = items.map((n, ni)=>{
+    const dir = (n.barChangePct===null||n.barChangePct===undefined) ? null : (n.barChangePct>=0?"up":"down");
+    const dirTxt = dir==="up"?"该时段价格上行":dir==="down"?"该时段价格走弱":"—";
+    const vt = volTagFor(sym, Math.min(n.idx, (d.prices||[]).length-1));
+    return `<div class="news-card" data-newsidx="${ni}" id="news-${sym}-${ni}">
+      <div class="nc-top">
+        <div>
+          <div class="nc-title"><a href="${n.url||'#'}" target="_blank" rel="noopener">${n.title}</a></div>
+          <div class="nc-src">${n.src||'来源未知'} · ${n.time}</div>
+        </div>
+        <div class="nc-tags">
+          ${dir?`<span class="nc-tag ${dir}">${dirTxt}</span>`:''}
+          <span class="nc-tag ${vt.cls}">${vt.label}</span>
+        </div>
+      </div>
+      <div class="nc-data">
+        ${n.barChangePct!==null&&n.barChangePct!==undefined?`<b>该时段涨跌：${fmtPct(n.barChangePct)}</b>　`:''}
+        ${n.volRatio?`成交量为均值 <b>${n.volRatio.toFixed(1)}×</b>`:''}
+        　— 新闻发布时间与K线就近匹配，供参考，非因果结论
+      </div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll('.news-card').forEach(card=>card.addEventListener('click', ()=>pulseMarker(card.dataset.newsidx)));
+}
+
+function focusNews(idx){
+  const el = document.getElementById(`news-${current}-${idx}`);
+  if(!el) return;
+  document.querySelectorAll('.news-card').forEach(c=>c.classList.remove('highlight'));
+  el.classList.add('highlight');
+  el.scrollIntoView({behavior:'smooth', block:'center'});
+  pulseMarker(idx);
+}
+function pulseMarker(idx){
+  document.querySelectorAll('.marker').forEach(m=>m.classList.remove('pulse'));
+  const m = document.querySelector(`.marker[data-newsidx="${idx}"]`);
+  if(m){ m.classList.add('pulse'); setTimeout(()=>m.classList.remove('pulse'), 1900); }
+}
+
+function selectStock(sym){
+  current = sym;
+  const d = DATA.stocks[sym];
+  const pct = pctOf(sym);
+  const cls = pct>=0?"up":"down";
+  const sig = overallSignal(sym);
+
+  document.getElementById('dSym').innerHTML = `${sym}<span class="cname">${d.name}</span>`;
+  document.getElementById('dPrice').textContent = fmtPrice(d.currentPrice);
+  const chgEl = document.getElementById('dChg'); chgEl.textContent = fmtPct(pct); chgEl.className = "chg mono " + cls;
+  const volEl = document.getElementById('dVolSignal'); volEl.textContent = sig.label; volEl.className = "chg mono " + sig.cls;
+
+  renderChart(sym);
+  renderNews(sym);
+
+  document.querySelectorAll('.stock-row').forEach(el=>el.classList.toggle('active', el.dataset.sym===sym));
+  document.querySelectorAll('.mover-card').forEach(el=>el.classList.toggle('active', el.dataset.sym===sym));
+}
+
+function showStatus(msg){
+  const b = document.getElementById('statusBanner');
+  b.innerHTML = msg; b.classList.add('show');
+}
+
+async function init(){
+  try{
+    const res = await fetch('./data.json?t=' + Date.now(), {cache:'no-store'});
+    if(!res.ok) throw new Error('data.json 未找到');
+    DATA = await res.json();
+
+    document.getElementById('updatedAt').textContent = '数据更新时间：' + new Date(DATA.generatedAt).toLocaleString('zh-CN', {hour12:false});
+
+    const errCount = Object.values(DATA.stocks).filter(d=>d.error).length;
+    if(errCount>0){
+      showStatus(`⚠ 有 ${errCount} 支股票数据获取失败（可能是未开盘、免费额度限制或股票代码问题），已在自选股列表中灰显。`);
+    }
+
+    buildTicker(); buildMovers(); buildEarlyWarning(); buildRiskCalendar(); buildWatchlist();
+    const firstOk = Object.entries(DATA.stocks).find(([,d])=>!d.error);
+    if(firstOk) selectStock(firstOk[0]);
+    else showStatus('暂时没有任何可用数据，请检查 GitHub Actions 是否运行成功。');
+
+  } catch(e){
+    showStatus(`⚠ 还没有读取到数据（data.json）。请先在 GitHub 仓库的 Actions 页面手动运行一次 "Update Stock Data"，运行成功后刷新本页面。<br>错误详情：<code>${e.message}</code>`);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
