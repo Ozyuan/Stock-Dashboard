@@ -1,0 +1,36 @@
+name: Update Stock Data
+
+on:
+  schedule:
+    # 每个交易日 13:00 UTC 左右自动跑一次（大致对应美股开盘前，夏令时/冬令时会有1小时误差，无需精确）
+    - cron: "0 13 * * 1-5"
+  # 也支持手动点击运行（在 GitHub 仓库的 Actions 页面点 "Run workflow"）
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取仓库代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 抓取行情、新闻、财报数据
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+        run: python fetch_data.py
+
+      - name: 提交更新后的 data.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data.json
+          git diff --staged --quiet || git commit -m "自动更新股票数据 $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push
